@@ -112,9 +112,8 @@
 </head>
 <body>
 <div class="container">
-    <h1>培训报名系统</h1>
+    <h1>培训报名系统（云端统一版）</h1>
 
-    <!-- 管理员登录 -->
     <div class="admin-login" id="adminLogin">
         <h3>管理员登录</h3>
         <div class="form-item">
@@ -130,12 +129,10 @@
 
     <div class="form-box">
         <h3>报名信息填写</h3>
-
         <div class="form-item">
             <label>姓名：</label>
             <input type="text" id="name" placeholder="请输入真实姓名">
         </div>
-
         <div class="form-item">
             <label>性别：</label>
             <select id="gender">
@@ -144,35 +141,34 @@
                 <option value="女">女</option>
             </select>
         </div>
-
         <div class="form-item">
             <label>手机号：</label>
-            <input type="tel" id="phone" placeholder="请输入11位手机号" maxlength="11">
+            <input type="tel" id="phone" placeholder="必填11位纯数字手机号" maxlength="11">
         </div>
-
         <div class="form-item">
             <label>毕业院校：</label>
-            <input type="text" id="school" placeholder="请输入毕业院校">
+            <input type="text" id="school" placeholder="仅可填写中文院校名称">
         </div>
-
+        <!--新增学历下拉框-->
+        <div class="form-item">
+            <label>学历：</label>
+            <select id="education">
+                <option value="">请选择学历</option>
+                <option value="硕士">硕士</option>
+                <option value="本科/预备技师">本科/预备技师</option>
+                <option value="大专/高技">大专/高技</option>
+            </select>
+        </div>
+        <!--已删除细分专业，只保留三大类-->
         <div class="form-item">
             <label>专业大类：</label>
             <select id="majorType">
                 <option value="">请选择专业大类</option>
-                <option value="机械大类">机械大类</option>
-                <option value="电气大类">电气大类</option>
-                <option value="视觉大类">视觉大类</option>
-                <option value="测试大类">测试大类</option>
+                <option value="机械大类(机械设计，机械工艺，机械装调，仿真，器件，激光装调工程师)">机械大类(机械设计，机械工艺，机械装调，仿真，器件，激光装调工程师)</option>
+                <option value="电气大类(电气设计，电气工艺，PLC程序，电气装调，激光工艺，激光电控)">电气大类(电气设计，电气工艺，PLC程序，电气装调，激光工艺，激光电控)</option>
+                <option value="视觉大类(视觉，视觉算法)">视觉大类(视觉，视觉算法)</option>
             </select>
         </div>
-
-        <div class="form-item">
-            <label>细分专业：</label>
-            <select id="majorSub">
-                <option value="">请先选择专业大类</option>
-            </select>
-        </div>
-
         <div class="form-item">
             <label>培训日期：</label>
             <select id="trainDate">
@@ -185,7 +181,6 @@
                 <option value="7月30日">7月30日</option>
             </select>
         </div>
-
         <div class="form-item">
             <label>穿衣尺码：</label>
             <select id="clothesSize">
@@ -203,12 +198,10 @@
                 <textarea id="otherSize" placeholder="请填写其他尺码"></textarea>
             </div>
         </div>
-
         <div class="form-item">
             <label>穿鞋码数：</label>
             <textarea id="shoeSize" placeholder="例：42、38、36等"></textarea>
         </div>
-
         <button id="submit">提交报名</button>
         <button id="exportExcel" class="export-btn hide">导出 Excel 报名表</button>
     </div>
@@ -225,54 +218,60 @@
 </div>
 
 <script>
-// 专业配置【新增测试大类】
-const majorData = {
-    "机械大类": ["机械设计", "机械工艺", "机械装调", "仿真", "器件", "激光装调"],
-    "电气大类": ["电气设计", "电气工艺", "PLC程序", "电气装调", "激光工艺", "激光电控"],
-    "视觉大类": ["视觉", "视觉算法"],
-    "测试大类": ["测试1", "测试2"]
-};
+const API_URL = "https://api.jsonbin.io/v3/b/6651f1c2ad37e9467cc781f1";
+const API_KEY = "$2b$10$LjzUCR5oFd7d5v5h5e5e5e";
 
-// 日期配置
+// 三大类配置、限额：机械35、电气35、视觉10，单日总上限90
+const majorLimit = {
+    "机械大类(机械设计，机械工艺，机械装调，仿真，器件，激光装调工程师)":35,
+    "电气大类(电气设计，电气工艺，PLC程序，电气装调，激光工艺，激光电控)":35,
+    "视觉大类(视觉，视觉算法)":10
+};
 const dates = ["6月25日","7月2日","7月9日","7月16日","7月23日","7月30日"];
 
-// 人数上限：总90、机械40、电气40、视觉12、测试3
 let countData = {};
 dates.forEach(d => {
-    countData[d] = { total:0, "机械大类":0, "电气大类":0, "视觉大类":0, "测试大类":0 };
+    countData[d] = {
+        total:0,
+        "机械大类(机械设计，机械工艺，机械装调，仿真，器件，激光装调工程师)":0,
+        "电气大类(电气设计，电气工艺，PLC程序，电气装调，激光工艺，激光电控)":0,
+        "视觉大类(视觉，视觉算法)":0
+    };
 });
 
 let records = [];
 let isAdmin = false;
 
-// 加载本地数据
-window.onload = () => {
-    const c = localStorage.getItem('trainCount');
-    const r = localStorage.getItem('trainRecords');
-    if(c) countData = JSON.parse(c);
-    if(r) records = JSON.parse(r);
+async function loadCloudData() {
+    let res = await fetch(API_URL, { headers: { "X-Master-Key": API_KEY } });
+    let data = await res.json();
+    records = data.record.records || [];
+    countData = data.record.countData || countData;
+    refresh();
+}
+
+async function saveCloudData() {
+    await fetch(API_URL, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Master-Key": API_KEY
+        },
+        body: JSON.stringify({ records, countData })
+    });
+}
+
+window.onload = async () => {
+    await loadCloudData();
     bindEvent();
     refresh();
 };
 
-// 绑定事件
 function bindEvent() {
-    // 专业联动
-    document.getElementById('majorType').onchange = function() {
-        const list = majorData[this.value] || [];
-        const sub = document.getElementById('majorSub');
-        sub.innerHTML = '<option value="">请选择细分专业</option>';
-        list.forEach(item => {
-            sub.innerHTML += `<option value="${item}">${item}</option>`;
-        });
-    };
-
-    // 尺码其他显示
     document.getElementById('clothesSize').onchange = function() {
         document.getElementById('otherSizeBox').classList.toggle('hide', this.value !== '其他');
     };
 
-    // 管理员登录【密码改为lqx888】
     document.getElementById('loginBtn').onclick = () => {
         const user = document.getElementById('adminUser').value;
         const pwd = document.getElementById('adminPwd').value;
@@ -290,14 +289,12 @@ function bindEvent() {
     };
 }
 
-// 刷新统计
 function refresh() {
     if(!isAdmin) return;
-
     let html = '';
     dates.forEach(d => {
         const item = countData[d];
-        html += `<p>${d}：总${item.total}/90 | 机械${item["机械大类"]}/40 | 电气${item["电气大类"]}/40 | 视觉${item["视觉大类"]}/12 | 测试${item["测试大类"]}/3</p>`;
+        html += `<p>${d}：总${item.total}/90 | ${Object.keys(majorLimit)[0]}：${item[Object.keys(majorLimit)[0]]}/${majorLimit[Object.keys(majorLimit)[0]]} | ${Object.keys(majorLimit)[1]}：${item[Object.keys(majorLimit)[1]]}/${majorLimit[Object.keys(majorLimit)[1]]} | ${Object.keys(majorLimit)[2]}：${item[Object.keys(majorLimit)[2]]}/${majorLimit[Object.keys(majorLimit)[2]]}</p>`;
     });
     document.getElementById('countInfo').innerHTML = html;
 
@@ -305,80 +302,79 @@ function refresh() {
     records.forEach((item, i) => {
         rhtml += `
         <div class="record-item">
-            ${i+1}、${item.name} | ${item.gender} | ${item.phone}<br>
-            院校：${item.school} | ${item.majorType}-${item.majorSub}<br>
+            ${i+1}、${item.name} | ${item.gender} | ${item.phone} | 学历：${item.education}<br>
+            院校：${item.school} | 专业：${item.majorType}<br>
             日期：${item.trainDate} | 衣服：${item.clothesSize} ${item.otherSize||''} | 鞋码：${item.shoeSize}
         </div>`;
     });
     document.getElementById('recordList').innerHTML = rhtml || '<p>暂无报名</p>';
 }
 
-// 提交报名
-document.getElementById('submit').onclick = () => {
+document.getElementById('submit').onclick = async () => {
     const name = document.getElementById('name').value.trim();
     const gender = document.getElementById('gender').value;
     const phone = document.getElementById('phone').value.trim();
     const school = document.getElementById('school').value.trim();
+    const education = document.getElementById('education').value;
     const majorType = document.getElementById('majorType').value;
-    const majorSub = document.getElementById('majorSub').value;
     const trainDate = document.getElementById('trainDate').value;
     const clothesSize = document.getElementById('clothesSize').value;
     const otherSize = document.getElementById('otherSize').value.trim();
     const shoeSize = document.getElementById('shoeSize').value.trim();
 
-    if(!name||!gender||!phone||!school||!majorType||!majorSub||!trainDate||!clothesSize||!shoeSize){
+    //空校验
+    if(!name||!gender||!phone||!school||!education||!majorType||!trainDate||!clothesSize||!shoeSize){
         alert('请填写完整信息！'); return;
     }
     if(clothesSize === '其他' && !otherSize){
         alert('请填写其他尺码！'); return;
     }
 
+    //手机号11位纯数字
+    const regPhone = /^\d{11}$/;
+    if(!regPhone.test(phone)){
+        alert('手机号格式错误！必须填写11位纯数字！');
+        return;
+    }
+    //院校全中文
+    const regChinese = /^[\u4e00-\u9fa5]+$/;
+    if(!regChinese.test(school)){
+        alert('毕业院校只能填写中文，不可填写数字、英文、符号！');
+        return;
+    }
+    //姓名+手机号防重复
     if(records.some(i => i.name === name && i.phone === phone)){
         alert('该学生已报名，禁止重复提交！'); return;
     }
 
     const day = countData[trainDate];
-    //总人数上限
+    //单日总人数上限90
     if(day.total >= 90){
-        alert(trainDate+'总人数已满90人！'); return;
+        alert(trainDate+'总报名人数已满90人！'); return;
     }
-    //各专业上限判断
-    if(majorType === "机械大类" && day["机械大类"] >=40){
-        alert(trainDate+'机械大类已满40人！'); return;
-    }
-    if(majorType === "电气大类" && day["电气大类"] >=40){
-        alert(trainDate+'电气大类已满40人！'); return;
-    }
-    if(majorType === "视觉大类" && day["视觉大类"] >=12){
-        alert(trainDate+'视觉大类已满12人！'); return;
-    }
-    if(majorType === "测试大类" && day["测试大类"] >=3){
-        alert(trainDate+'测试大类已满3人！'); return;
+    //大类单独限额
+    if(day[majorType] >= majorLimit[majorType]){
+        alert(`${trainDate}${majorType}名额已满${majorLimit[majorType]}人！`);
+        return;
     }
 
     day.total++;
     day[majorType]++;
-    records.push({name,gender,phone,school,majorType,majorSub,trainDate,clothesSize,otherSize,shoeSize});
-
-    localStorage.setItem('trainCount', JSON.stringify(countData));
-    localStorage.setItem('trainRecords', JSON.stringify(records));
-
+    records.push({name,gender,phone,school,education,majorType,trainDate,clothesSize,otherSize,shoeSize});
+    await saveCloudData();
     alert('报名成功！');
-    
     document.querySelectorAll('input,select,textarea').forEach(e=>e.value='');
     document.getElementById('otherSizeBox').classList.add('hide');
 };
 
-// 导出Excel
+//导出Excel（新增学历列）
 document.getElementById('exportExcel').onclick = function() {
     if (!isAdmin) { alert("仅管理员可导出"); return; }
     if (records.length === 0) { alert("暂无数据"); return; }
-
-    let csv = "姓名,性别,手机号,毕业院校,专业大类,细分专业,培训日期,穿衣尺码,其他尺码,穿鞋码数\n";
+    let csv = "姓名,性别,手机号,毕业院校,学历,专业大类,培训日期,穿衣尺码,其他尺码,穿鞋码数\n";
     records.forEach(item => {
-        csv += `${item.name},${item.gender},${item.phone},${item.school},${item.majorType},${item.majorSub},${item.trainDate},${item.clothesSize},${item.otherSize || ""},${item.shoeSize}\n`;
+        csv += `${item.name},${item.gender},${item.phone},${item.school},${item.education},${item.majorType},${item.trainDate},${item.clothesSize},${item.otherSize || ""},${item.shoeSize}\n`;
     });
-
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
