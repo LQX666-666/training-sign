@@ -159,15 +159,21 @@
                 <option value="大专/高技">大专/高技</option>
             </select>
         </div>
-        <!--已删除细分专业，只保留三大类-->
+        <!--岗位大类，替换专业+新增其他选项-->
         <div class="form-item">
-            <label>专业大类：</label>
-            <select id="majorType">
-                <option value="">请选择专业大类</option>
+            <label>岗位大类：</label>
+            <select id="postType">
+                <option value="">请选择岗位大类</option>
                 <option value="机械大类(机械设计，机械工艺，机械装调，仿真，器件，激光装调工程师)">机械大类(机械设计，机械工艺，机械装调，仿真，器件，激光装调工程师)</option>
                 <option value="电气大类(电气设计，电气工艺，PLC程序，电气装调，激光工艺，激光电控)">电气大类(电气设计，电气工艺，PLC程序，电气装调，激光工艺，激光电控)</option>
                 <option value="视觉大类(视觉，视觉算法)">视觉大类(视觉，视觉算法)</option>
+                <option value="其他">其他</option>
             </select>
+        </div>
+        <!--选择其他才显示备注输入框-->
+        <div class="form-item hide" id="otherRemarkBox">
+            <label>岗位备注：</label>
+            <textarea id="postRemark" placeholder="自行填写所属岗位信息"></textarea>
         </div>
         <div class="form-item">
             <label>培训日期：</label>
@@ -221,8 +227,8 @@
 const API_URL = "https://api.jsonbin.io/v3/b/6651f1c2ad37e9467cc781f1";
 const API_KEY = "$2b$10$LjzUCR5oFd7d5v5h5e5e5e";
 
-// 三大类配置、限额：机械35、电气35、视觉10，单日总上限90
-const majorLimit = {
+// 岗位限额：机械35、电气35、视觉10，【其他不限名额】，单日总上限90
+const postLimit = {
     "机械大类(机械设计，机械工艺，机械装调，仿真，器件，激光装调工程师)":35,
     "电气大类(电气设计，电气工艺，PLC程序，电气装调，激光工艺，激光电控)":35,
     "视觉大类(视觉，视觉算法)":10
@@ -268,6 +274,16 @@ window.onload = async () => {
 };
 
 function bindEvent() {
+    //切换其他显示备注框
+    document.getElementById('postType').onchange = function() {
+        const remarkBox = document.getElementById('otherRemarkBox');
+        if(this.value === "其他"){
+            remarkBox.classList.remove('hide');
+        }else{
+            remarkBox.classList.add('hide');
+        }
+    };
+
     document.getElementById('clothesSize').onchange = function() {
         document.getElementById('otherSizeBox').classList.toggle('hide', this.value !== '其他');
     };
@@ -294,16 +310,17 @@ function refresh() {
     let html = '';
     dates.forEach(d => {
         const item = countData[d];
-        html += `<p>${d}：总${item.total}/90 | ${Object.keys(majorLimit)[0]}：${item[Object.keys(majorLimit)[0]]}/${majorLimit[Object.keys(majorLimit)[0]]} | ${Object.keys(majorLimit)[1]}：${item[Object.keys(majorLimit)[1]]}/${majorLimit[Object.keys(majorLimit)[1]]} | ${Object.keys(majorLimit)[2]}：${item[Object.keys(majorLimit)[2]]}/${majorLimit[Object.keys(majorLimit)[2]]}</p>`;
+        html += `<p>${d}：总${item.total}/90 | 机械岗位：${item[Object.keys(postLimit)[0]]}/${postLimit[Object.keys(postLimit)[0]]} | 电气岗位：${item[Object.keys(postLimit)[1]]}/${postLimit[Object.keys(postLimit)[1]]} | 视觉岗位：${item[Object.keys(postLimit)[2]]}/${postLimit[Object.keys(postLimit)[2]]} | 其他岗位无名额限制</p>`;
     });
     document.getElementById('countInfo').innerHTML = html;
 
     let rhtml = '';
     records.forEach((item, i) => {
+        let rem = item.postRemark ? "，备注："+item.postRemark : "";
         rhtml += `
         <div class="record-item">
             ${i+1}、${item.name} | ${item.gender} | ${item.phone} | 学历：${item.education}<br>
-            院校：${item.school} | 专业：${item.majorType}<br>
+            院校：${item.school} | 岗位：${item.postType}${rem}<br>
             日期：${item.trainDate} | 衣服：${item.clothesSize} ${item.otherSize||''} | 鞋码：${item.shoeSize}
         </div>`;
     });
@@ -316,15 +333,21 @@ document.getElementById('submit').onclick = async () => {
     const phone = document.getElementById('phone').value.trim();
     const school = document.getElementById('school').value.trim();
     const education = document.getElementById('education').value;
-    const majorType = document.getElementById('majorType').value;
+    const postType = document.getElementById('postType').value;
+    const postRemark = document.getElementById('postRemark').value.trim();
     const trainDate = document.getElementById('trainDate').value;
     const clothesSize = document.getElementById('clothesSize').value;
     const otherSize = document.getElementById('otherSize').value.trim();
     const shoeSize = document.getElementById('shoeSize').value.trim();
 
-    //空校验
-    if(!name||!gender||!phone||!school||!education||!majorType||!trainDate||!clothesSize||!shoeSize){
+    //空项校验
+    if(!name||!gender||!phone||!school||!education||!postType||!trainDate||!clothesSize||!shoeSize){
         alert('请填写完整信息！'); return;
+    }
+    //选其他必须填写岗位备注
+    if(postType === "其他" && !postRemark){
+        alert('选择【其他】岗位时，请填写岗位备注！');
+        return;
     }
     if(clothesSize === '其他' && !otherSize){
         alert('请填写其他尺码！'); return;
@@ -352,28 +375,31 @@ document.getElementById('submit').onclick = async () => {
     if(day.total >= 90){
         alert(trainDate+'总报名人数已满90人！'); return;
     }
-    //大类单独限额
-    if(day[majorType] >= majorLimit[majorType]){
-        alert(`${trainDate}${majorType}名额已满${majorLimit[majorType]}人！`);
+    //非其他岗位校验名额，其他不限
+    if(postType !== "其他" && day[postType] >= postLimit[postType]){
+        alert(`${trainDate}${postType}名额已满${postLimit[postType]}人！`);
         return;
     }
 
+    //只有固定三类才计数，其他不占用岗位名额
+    if(postType !== "其他") day[postType]++;
     day.total++;
-    day[majorType]++;
-    records.push({name,gender,phone,school,education,majorType,trainDate,clothesSize,otherSize,shoeSize});
+
+    records.push({name,gender,phone,school,education,postType,postRemark,trainDate,clothesSize,otherSize,shoeSize});
     await saveCloudData();
     alert('报名成功！');
     document.querySelectorAll('input,select,textarea').forEach(e=>e.value='');
     document.getElementById('otherSizeBox').classList.add('hide');
+    document.getElementById('otherRemarkBox').classList.add('hide');
 };
 
-//导出Excel（新增学历列）
+//导出Excel新增岗位备注列
 document.getElementById('exportExcel').onclick = function() {
     if (!isAdmin) { alert("仅管理员可导出"); return; }
     if (records.length === 0) { alert("暂无数据"); return; }
-    let csv = "姓名,性别,手机号,毕业院校,学历,专业大类,培训日期,穿衣尺码,其他尺码,穿鞋码数\n";
+    let csv = "姓名,性别,手机号,毕业院校,学历,岗位大类,岗位备注,培训日期,穿衣尺码,其他尺码,穿鞋码数\n";
     records.forEach(item => {
-        csv += `${item.name},${item.gender},${item.phone},${item.school},${item.education},${item.majorType},${item.trainDate},${item.clothesSize},${item.otherSize || ""},${item.shoeSize}\n`;
+        csv += `${item.name},${item.gender},${item.phone},${item.school},${item.education},${item.postType},${item.postRemark||""},${item.trainDate},${item.clothesSize},${item.otherSize || ""},${item.shoeSize}\n`;
     });
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
