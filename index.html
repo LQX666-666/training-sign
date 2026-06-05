@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>培训报名系统（仅手动刷新版）</title>
+    <!--页面HTML禁用缓存-->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>培训报名系统（根治CDN缓存·仅手动刷新）</title>
     <style>
         * {
             margin: 0;
@@ -117,7 +121,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>培训报名系统（仅手动刷新版）</h1>
+    <h1>培训报名系统（根治CDN缓存·仅手动刷新）</h1>
 
     <div class="admin-login" id="adminLogin">
         <h3>管理员登录</h3>
@@ -249,50 +253,49 @@ dates.forEach(d => {
 let records = [];
 let isAdmin = false;
 
-// 每次全新随机参数，彻底规避CDN&浏览器缓存
-function getNoCacheUrl(){
-    let random = Date.now() + Math.random();
-    return `https://api.jsonbin.io/v3/b/${BIN_ID}/latest?_r=${random}`;
-}
-
-// 手动刷新核心函数，按钮状态管控+弹窗提示
+// 改用POST请求拿数据，抛弃/latest强缓存接口
 async function loadCloudData() {
     const btn = document.getElementById('refreshData');
     if(btn) btn.disabled = true;
     try{
         const abortCtrl = new AbortController();
-        const timeout = setTimeout(()=>abortCtrl.abort(),10000);
-        const res = await fetch(getNoCacheUrl(),{
+        const timeout = setTimeout(()=>abortCtrl.abort(),12000);
+        // POST方式读取bin，绕过CDN GET长效缓存 + X-Bin-Meta:false去掉外层包装
+        const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`,{
+            method:"POST",
             headers:{
                 "X-Master-Key":API_KEY,
-                "Cache-Control":"no-cache, no-store, must-revalidate",
-                "Pragma":"no-cache"
+                "X-Bin-Meta":"false",//直接返回原始json，无外层record包裹
+                "Cache-Control":"no-cache, no-store, must-revalidate, max-age=0",
+                "Pragma":"no-cache",
+                "Expires":"0"
             },
             cache:"no-store",
             signal:abortCtrl.signal
         });
         clearTimeout(timeout);
-        const data = await res.json();
-        if(data.record){
-            records = Array.isArray(data.record.records) ? [...data.record.records] : [];
-            countData = data.record.countData || countData;
-        }
+        const rawData = await res.json();
+        // 直接读取原始数据
+        records = Array.isArray(rawData.records) ? [...rawData.records] : [];
+        countData = rawData.countData || countData;
         refresh();
-        alert("✅ 数据刷新完成，已同步云端最新报名！");
+        alert("✅ 刷新成功，已同步云端最新报名");
     }catch(e){
-        alert("❌ 刷新失败："+e.message);
+        alert("❌ 刷新异常："+e.message);
+        console.error(e);
     }finally{
         if(btn) btn.disabled = false;
     }
 }
 
-// 提交：先拉云端最新，再新增保存，避免丢失数据
+// 提交前先拉全量最新数据再保存
 async function saveCloudData(newItem,dateKey,postKey){
     await loadCloudData();
     let dayItem = countData[dateKey];
     dayItem.total += 1;
     if(postKey !== "其他") dayItem[postKey] +=1;
     records.push(newItem);
+    // PUT提交保存
     await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`,{
         method:"PUT",
         headers:{
@@ -305,13 +308,12 @@ async function saveCloudData(newItem,dateKey,postKey){
 }
 
 document.addEventListener('DOMContentLoaded',async ()=>{
-    //读取本地登录状态
     const localLogin = localStorage.getItem("adminLoginStatus");
     if(localLogin === "ok"){
         isAdmin = true;
         setAdminShow();
     }
-    //页面初始化加载一次数据，无任何自动定时刷新
+    //页面初始化加载1次，无任何自动定时刷新
     await loadCloudData();
     bindEvent();
 })
