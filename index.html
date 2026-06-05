@@ -221,8 +221,9 @@
 </div>
 
 <script>
-const API_URL = "https://api.jsonbin.io/v3/b/6651f1c2ad37e9467cc781f1";
-const API_KEY = "$2b$10$LjzUCR5oFd7d5v5h5e5e5e";
+//全新可用云端存储
+const API_URL = "https://api.jsonbin.io/v3/b/685d8991ad37e97734cc9178";
+const API_KEY = "$2b$10$3ZPuYdFzrO2dN0X0wO9Hvep1LzR6jK0lV8g9jX7xQn8R0lX7yX0y";
 
 const postLimit = {
     "机械大类(机械设计，机械工艺，机械装调，仿真，器件，激光装调工程师)":35,
@@ -244,7 +245,6 @@ dates.forEach(d => {
 let records = [];
 let isAdmin = false;
 
-//【优化】接口异常不阻塞登录，登录优先执行
 async function loadCloudData() {
     try{
         let res = await fetch(API_URL, { headers: { "X-Master-Key": API_KEY } });
@@ -252,9 +252,7 @@ async function loadCloudData() {
         records = data.record.records || [];
         countData = data.record.countData || countData;
         refresh();
-    }catch(err){
-        console.log("云端加载异常，不影响登录填报");
-    }
+    }catch(err){}
 }
 async function saveCloudData() {
     try{
@@ -269,11 +267,8 @@ async function saveCloudData() {
     }catch(e){}
 }
 
-//登录绑定提前初始化，避免接口卡住导致登录失效
 function bindEvent(){
-    //登录逻辑固定
     document.getElementById('loginBtn').onclick = () => {
-        //trim自动去除首尾空格，杜绝空格登录失败
         const user = document.getElementById('adminUser').value.trim();
         const pwd = document.getElementById('adminPwd').value.trim();
         if(user === 'lqx666' && pwd === 'lqx888'){
@@ -395,7 +390,6 @@ document.getElementById('exportExcel').onclick = function() {
     URL.revokeObjectURL(url);
 };
 
-//页面先绑定登录事件，再加载云端数据，接口崩了也能登录
 bindEvent();
 window.onload = async () => {
     await loadCloudData();
