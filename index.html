@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>培训报名系统（云端统四版）</title>
+    <title>培训报名系统（全同步修复版）</title>
     <style>
         * {
             margin: 0;
@@ -113,7 +113,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>培训报名系统（云端统四版）</h1>
+    <h1>培训报名系统（全同步修复版）</h1>
 
     <div class="admin-login" id="adminLogin">
         <h3>管理员登录</h3>
@@ -129,7 +129,7 @@
     </div>
 
     <div class="admin-operate hide" id="adminOperBox">
-        <button id="refreshData" class="refresh-data-btn">刷新最新报名数据</button>
+        <button id="refreshData" class="refresh-data-btn">强制刷新最新数据</button>
         <button id="exportExcel" class="export-btn">导出 Excel 报名表</button>
         <button id="logoutBtn" class="logout-btn">退出管理员登录</button>
     </div>
@@ -245,9 +245,52 @@ dates.forEach(d => {
 let records = [];
 let isAdmin = false;
 
-// 每次获取唯一时间戳，彻底杜绝缓存
+// 全参数禁用缓存，终极防CDN+浏览器缓存
 function getNoCacheUrl(){
-    return `https://api.jsonbin.io/v3/b/${BIN_ID}/latest?t=${new Date().getTime()}`;
+    let t = new Date().getTime() + Math.random();
+    return `https://api.jsonbin.io/v3/b/${BIN_ID}/latest?_=${t}`;
+}
+
+// 全局强制拉取云端最新，所有设备通用
+async function loadCloudData() {
+    try {
+        const res = await fetch(getNoCacheUrl(), {
+            headers: { "X-Master-Key": API_KEY },
+            cache: "no-cache",
+            credentials: "omit"
+        });
+        const json = await res.json();
+        // 优先读取云端数据，绝不使用本地旧变量覆盖
+        if(json?.record){
+            records = Array.isArray(json.record.records) ? [...json.record.records] : [];
+            countData = json.record.countData || countData;
+        }
+        refresh();
+    } catch (err) {
+        console.log('拉取异常',err);
+    }
+}
+
+// 提交逻辑优化：先拉最新云端数据再追加，杜绝覆盖丢失数据【核心修复点】
+async function saveCloudData(newItem,dayKey,typeKey){
+    // 提交前先获取云端最新全量数据
+    await loadCloudData();
+    // 人数统计在最新云端数据上修改
+    let day = countData[dayKey];
+    day.total++;
+    if(typeKey !== "其他") day[typeKey]++;
+    // 在云端现有数组末尾新增，不会丢历史数据
+    records.push(newItem);
+    // 完整回写云端
+    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Master-Key": API_KEY,
+            "Cache-Control":"no-cache"
+        },
+        body: JSON.stringify({ records, countData })
+    });
 }
 
 window.onload = async () => {
@@ -257,35 +300,9 @@ window.onload = async () => {
         setAdminShow();
     }
     await loadCloudData();
-    // 每10秒自动刷新一次（不用手动点）
-    setInterval(loadCloudData, 10000);
+    // 8秒自动轮询刷新，缩短同步间隔
+    setInterval(loadCloudData,8000);
 };
-
-async function loadCloudData() {
-    try {
-        let res = await fetch(getNoCacheUrl(), {
-            headers: { "X-Master-Key": API_KEY },
-            cache: "no-store"
-        });
-        let data = await res.json();
-        records = data.record?.records || [];
-        countData = data.record?.countData || countData;
-        refresh();
-    } catch (e) {}
-}
-
-async function saveCloudData() {
-    try {
-        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-            method: "PUT",
-            headers: {
-                "Content-Type": "application/json",
-                "X-Master-Key": API_KEY
-            },
-            body: JSON.stringify({ records, countData })
-        });
-    } catch (e) {}
-}
 
 function setAdminShow(){
     document.getElementById('adminLogin').classList.add('hide');
@@ -295,15 +312,15 @@ function setAdminShow(){
 }
 
 function bindEvent(){
-    document.getElementById('loginBtn').onclick = () => {
+    document.getElementById('loginBtn').onclick = async () => {
         const user = document.getElementById('adminUser').value.trim();
         const pwd = document.getElementById('adminPwd').value.trim();
         if(user === 'lqx666' && pwd === 'lqx888'){
             isAdmin = true;
             localStorage.setItem('adminLoginStatus','ok');
             setAdminShow();
+            await loadCloudData();
             alert('管理员登录成功！');
-            refresh();
         }else{
             alert('账号或密码错误！');
         }
@@ -352,6 +369,9 @@ function bindEvent(){
         if(!regPhone.test(phone)){ alert('手机号必须11位纯数字！'); return; }
         const regChinese = /^[\u4e00-\u9fa5]+$/;
         if(!regChinese.test(school)){ alert('毕业院校只能填中文！'); return; }
+
+        // 提交前先拉云端数据查重
+        await loadCloudData();
         if(records.some(i => i.name === name && i.phone === phone)){ alert('已报名，禁止重复提交！'); return; }
 
         const day = countData[trainDate];
@@ -361,10 +381,8 @@ function bindEvent(){
             return;
         }
 
-        if(postType !== "其他") day[postType]++;
-        day.total++;
-        records.push({name,gender,phone,school,education,postType,postRemark,trainDate,clothesSize,otherSize,shoeSize});
-        await saveCloudData();
+        const newInfo = {name,gender,phone,school,education,postType,postRemark,trainDate,clothesSize,otherSize,shoeSize};
+        await saveCloudData(newInfo,trainDate,postType);
         alert('报名成功！');
         document.querySelectorAll('input,select,textarea').forEach(e=>e.value='');
         document.getElementById('otherSizeBox').classList.add('hide');
@@ -387,6 +405,7 @@ function bindEvent(){
     };
 }
 
+// 页面渲染名单&人数
 function refresh() {
     if(!isAdmin) return;
     let html = '';
