@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>学生培训日期报名系统</title>
+    <title>培训报名系统</title>
     <style>
         * {
             margin: 0;
@@ -12,30 +12,28 @@
             font-family: "Microsoft YaHei", sans-serif;
         }
         body {
-            background-color: #f5f7fa;
+            background: #f5f7fa;
             padding: 20px;
         }
         .container {
-            max-width: 700px;
-            margin: 30px auto;
+            max-width: 800px;
+            margin: 0 auto;
             background: white;
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
         }
         h1 {
             text-align: center;
-            color: #2d3748;
             margin-bottom: 25px;
-            font-size: 24px;
+            color: #2d3748;
         }
         h3 {
-            color: #4a5568;
             margin-bottom: 15px;
-            font-size: 18px;
+            color: #444;
         }
         .form-box {
-            background: #f8f9fa;
+            background: #f9f9f9;
             padding: 25px;
             border-radius: 10px;
             margin-bottom: 30px;
@@ -45,194 +43,349 @@
         }
         label {
             display: inline-block;
-            width: 80px;
+            width: 110px;
             font-weight: bold;
-            color: #333;
+            vertical-align: top;
+            padding-top: 8px;
         }
-        input, select {
-            width: 280px;
+        input, select, textarea {
+            width: 340px;
             padding: 10px;
             border: 1px solid #ddd;
             border-radius: 6px;
             font-size: 15px;
         }
+        textarea {
+            resize: none;
+            min-height: 45px;
+        }
         button {
-            background: #3498db;
+            background: #2d8cf0;
             color: white;
             border: none;
-            padding: 11px 25px;
+            padding: 12px 30px;
             border-radius: 6px;
-            cursor: pointer;
             font-size: 16px;
-            transition: 0.2s;
+            cursor: pointer;
+            margin-right: 10px;
         }
         button:hover {
-            background: #2980b9;
+            background: #1b74d0;
+        }
+        .export-btn {
+            background: #00b42a;
+        }
+        .export-btn:hover {
+            background: #009a23;
         }
         .info-box {
-            background: #f8f9fa;
+            background: #f9f9f9;
             padding: 20px;
             border-radius: 10px;
             margin-bottom: 20px;
         }
-        .info-box p {
-            line-height: 1.6;
-            color: #333;
-            margin-bottom: 8px;
-        }
         .record-list {
-            max-height: 250px;
+            max-height: 350px;
             overflow-y: auto;
             padding: 10px;
-            background: #fafbfc;
-            border-radius: 8px;
         }
         .record-item {
-            padding: 10px;
+            padding: 12px;
             border-bottom: 1px solid #eee;
+            line-height: 1.6;
         }
-        .warn {
-            color: #e74c3c;
-            font-weight: bold;
+        .hide {
+            display: none !important;
+        }
+        .tip {
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .admin-login {
+            background: #fce4ec;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>机械/电气专业培训报名系统</h1>
+<div class="container">
+    <h1>培训报名系统</h1>
 
-        <div class="form-box">
-            <h3>报名信息填写</h3>
-            <div class="form-item">
-                <label>姓名：</label>
-                <input type="text" id="name" placeholder="请输入真实姓名" required>
-            </div>
-            <div class="form-item">
-                <label>专业：</label>
-                <select id="major" required>
-                    <option value="">请选择专业</option>
-                    <option value="机械">机械专业</option>
-                    <option value="电气">电气专业</option>
-                </select>
-            </div>
-            <div class="form-item">
-                <label>培训日期：</label>
-                <select id="date" required>
-                    <option value="">请选择日期</option>
-                    <option value="25">25号</option>
-                    <option value="26">26号</option>
-                    <option value="27">27号</option>
-                    <option value="28">28号</option>
-                </select>
-            </div>
-            <button id="submitBtn">提交报名</button>
+    <!-- 管理员登录 -->
+    <div class="admin-login" id="adminLogin">
+        <h3>管理员登录</h3>
+        <div class="form-item">
+            <label>账号：</label>
+            <input type="text" id="adminUser" placeholder="输入管理员账号">
         </div>
-
-        <div class="info-box">
-            <h3>实时报名人数统计</h3>
-            <div id="countInfo"></div>
+        <div class="form-item">
+            <label>密码：</label>
+            <input type="password" id="adminPwd" placeholder="输入管理员密码">
         </div>
-
-        <div class="info-box">
-            <h3>已报名学生列表</h3>
-            <div class="record-list" id="recordList"></div>
-        </div>
+        <button id="loginBtn">登录</button>
     </div>
 
+    <div class="form-box">
+        <h3>报名信息填写</h3>
+
+        <div class="form-item">
+            <label>姓名：</label>
+            <input type="text" id="name" placeholder="请输入真实姓名">
+        </div>
+
+        <div class="form-item">
+            <label>性别：</label>
+            <select id="gender">
+                <option value="">请选择性别</option>
+                <option value="男">男</option>
+                <option value="女">女</option>
+            </select>
+        </div>
+
+        <div class="form-item">
+            <label>手机号：</label>
+            <input type="tel" id="phone" placeholder="请输入11位手机号" maxlength="11">
+        </div>
+
+        <div class="form-item">
+            <label>毕业院校：</label>
+            <input type="text" id="school" placeholder="请输入毕业院校">
+        </div>
+
+        <div class="form-item">
+            <label>专业大类：</label>
+            <select id="majorType">
+                <option value="">请选择专业大类</option>
+                <option value="机械大类">机械大类</option>
+                <option value="电气大类">电气大类</option>
+                <option value="视觉大类">视觉大类</option>
+                <option value="测试大类">测试大类</option>
+            </select>
+        </div>
+
+        <div class="form-item">
+            <label>细分专业：</label>
+            <select id="majorSub">
+                <option value="">请先选择专业大类</option>
+            </select>
+        </div>
+
+        <div class="form-item">
+            <label>培训日期：</label>
+            <select id="trainDate">
+                <option value="">请选择培训日期</option>
+                <option value="6月25日">6月25日</option>
+                <option value="7月2日">7月2日</option>
+                <option value="7月9日">7月9日</option>
+                <option value="7月16日">7月16日</option>
+                <option value="7月23日">7月23日</option>
+                <option value="7月30日">7月30日</option>
+            </select>
+        </div>
+
+        <div class="form-item">
+            <label>穿衣尺码：</label>
+            <select id="clothesSize">
+                <option value="">请选择尺码</option>
+                <option value="S">S</option>
+                <option value="M">M</option>
+                <option value="L">L</option>
+                <option value="XL">XL</option>
+                <option value="XXL">XXL</option>
+                <option value="3XL">3XL</option>
+                <option value="4XL">4XL</option>
+                <option value="其他">其他</option>
+            </select>
+            <div id="otherSizeBox" class="hide">
+                <textarea id="otherSize" placeholder="请填写其他尺码"></textarea>
+            </div>
+        </div>
+
+        <div class="form-item">
+            <label>穿鞋码数：</label>
+            <textarea id="shoeSize" placeholder="例：42、38、36等"></textarea>
+        </div>
+
+        <button id="submit">提交报名</button>
+        <button id="exportExcel" class="export-btn hide">导出 Excel 报名表</button>
+    </div>
+
+    <div class="info-box hide" id="countBox">
+        <h3>实时报名人数</h3>
+        <div id="countInfo"></div>
+    </div>
+
+    <div class="info-box hide" id="recordBox">
+        <h3>已报名名单</h3>
+        <div class="record-list" id="recordList"></div>
+    </div>
+</div>
+
 <script>
-// 报名数据规则
-let data = {
-    25: { total: 0, 机械: 0, 电气: 0 },
-    26: { total: 0, 机械: 0, 电气: 0 },
-    27: { total: 0, 机械: 0, 电气: 0 },
-    28: { total: 0, 机械: 0, 电气: 0 }
+// 专业配置【新增测试大类】
+const majorData = {
+    "机械大类": ["机械设计", "机械工艺", "机械装调", "仿真", "器件", "激光装调"],
+    "电气大类": ["电气设计", "电气工艺", "PLC程序", "电气装调", "激光工艺", "激光电控"],
+    "视觉大类": ["视觉", "视觉算法"],
+    "测试大类": ["测试1", "测试2"]
 };
 
-// 报名记录（用于查重）
+// 日期配置
+const dates = ["6月25日","7月2日","7月9日","7月16日","7月23日","7月30日"];
+
+// 人数上限：总90、机械40、电气40、视觉12、测试3
+let countData = {};
+dates.forEach(d => {
+    countData[d] = { total:0, "机械大类":0, "电气大类":0, "视觉大类":0, "测试大类":0 };
+});
+
 let records = [];
+let isAdmin = false;
 
-// 页面加载时读取本地数据
-window.onload = function() {
-    const savedData = localStorage.getItem('trainingSignData');
-    const savedRecords = localStorage.getItem('trainingSignRecords');
-    
-    if (savedData) data = JSON.parse(savedData);
-    if (savedRecords) records = JSON.parse(savedRecords);
-    
-    refreshUI();
+// 加载本地数据
+window.onload = () => {
+    const c = localStorage.getItem('trainCount');
+    const r = localStorage.getItem('trainRecords');
+    if(c) countData = JSON.parse(c);
+    if(r) records = JSON.parse(r);
+    bindEvent();
+    refresh();
 };
 
-// 刷新页面显示
-function refreshUI() {
-    // 更新人数统计
-    let countHtml = '';
-    for (let day in data) {
-        const d = data[day];
-        countHtml += `<p>${day}号：总人数 ${d.total}/25　｜　机械 ${d.机械}/15　｜　电气 ${d.电气}/15</p>`;
-    }
-    document.getElementById('countInfo').innerHTML = countHtml;
-
-    // 更新报名记录
-    let recordHtml = '';
-    if (records.length === 0) {
-        recordHtml = '<p>暂无学生报名</p>';
-    } else {
-        records.forEach((item, i) => {
-            recordHtml += `<div class="record-item">${i+1}、${item.name}（${item.major}）- ${item.date}号</div>`;
+// 绑定事件
+function bindEvent() {
+    // 专业联动
+    document.getElementById('majorType').onchange = function() {
+        const list = majorData[this.value] || [];
+        const sub = document.getElementById('majorSub');
+        sub.innerHTML = '<option value="">请选择细分专业</option>';
+        list.forEach(item => {
+            sub.innerHTML += `<option value="${item}">${item}</option>`;
         });
-    }
-    document.getElementById('recordList').innerHTML = recordHtml;
+    };
+
+    // 尺码其他显示
+    document.getElementById('clothesSize').onchange = function() {
+        document.getElementById('otherSizeBox').classList.toggle('hide', this.value !== '其他');
+    };
+
+    // 管理员登录【密码改为lqx888】
+    document.getElementById('loginBtn').onclick = () => {
+        const user = document.getElementById('adminUser').value;
+        const pwd = document.getElementById('adminPwd').value;
+        if(user === 'lqx666' && pwd === 'lqx888'){
+            isAdmin = true;
+            document.getElementById('adminLogin').classList.add('hide');
+            document.getElementById('exportExcel').classList.remove('hide');
+            document.getElementById('countBox').classList.remove('hide');
+            document.getElementById('recordBox').classList.remove('hide');
+            alert('管理员登录成功！');
+            refresh();
+        }else{
+            alert('账号或密码错误！');
+        }
+    };
+}
+
+// 刷新统计
+function refresh() {
+    if(!isAdmin) return;
+
+    let html = '';
+    dates.forEach(d => {
+        const item = countData[d];
+        html += `<p>${d}：总${item.total}/90 | 机械${item["机械大类"]}/40 | 电气${item["电气大类"]}/40 | 视觉${item["视觉大类"]}/12 | 测试${item["测试大类"]}/3</p>`;
+    });
+    document.getElementById('countInfo').innerHTML = html;
+
+    let rhtml = '';
+    records.forEach((item, i) => {
+        rhtml += `
+        <div class="record-item">
+            ${i+1}、${item.name} | ${item.gender} | ${item.phone}<br>
+            院校：${item.school} | ${item.majorType}-${item.majorSub}<br>
+            日期：${item.trainDate} | 衣服：${item.clothesSize} ${item.otherSize||''} | 鞋码：${item.shoeSize}
+        </div>`;
+    });
+    document.getElementById('recordList').innerHTML = rhtml || '<p>暂无报名</p>';
 }
 
 // 提交报名
-document.getElementById('submitBtn').onclick = function() {
+document.getElementById('submit').onclick = () => {
     const name = document.getElementById('name').value.trim();
-    const major = document.getElementById('major').value;
-    const date = document.getElementById('date').value;
+    const gender = document.getElementById('gender').value;
+    const phone = document.getElementById('phone').value.trim();
+    const school = document.getElementById('school').value.trim();
+    const majorType = document.getElementById('majorType').value;
+    const majorSub = document.getElementById('majorSub').value;
+    const trainDate = document.getElementById('trainDate').value;
+    const clothesSize = document.getElementById('clothesSize').value;
+    const otherSize = document.getElementById('otherSize').value.trim();
+    const shoeSize = document.getElementById('shoeSize').value.trim();
 
-    // 1. 校验空项
-    if (!name || !major || !date) {
-        alert('请填写完整信息！');
-        return;
+    if(!name||!gender||!phone||!school||!majorType||!majorSub||!trainDate||!clothesSize||!shoeSize){
+        alert('请填写完整信息！'); return;
+    }
+    if(clothesSize === '其他' && !otherSize){
+        alert('请填写其他尺码！'); return;
     }
 
-    // 2. 【禁止重复报名】核心判断：姓名+专业 唯一
-    const isRepeat = records.some(item => item.name === name && item.major === major);
-    if (isRepeat) {
-        alert('该学生已报名，禁止重复提交！');
-        return;
+    if(records.some(i => i.name === name && i.phone === phone)){
+        alert('该学生已报名，禁止重复提交！'); return;
     }
 
-    const target = data[date];
-
-    // 3. 每日总人数上限 25
-    if (target.total >= 25) {
-        alert(`${date}号总人数已满25人，无法报名！`);
-        return;
+    const day = countData[trainDate];
+    //总人数上限
+    if(day.total >= 90){
+        alert(trainDate+'总人数已满90人！'); return;
+    }
+    //各专业上限判断
+    if(majorType === "机械大类" && day["机械大类"] >=40){
+        alert(trainDate+'机械大类已满40人！'); return;
+    }
+    if(majorType === "电气大类" && day["电气大类"] >=40){
+        alert(trainDate+'电气大类已满40人！'); return;
+    }
+    if(majorType === "视觉大类" && day["视觉大类"] >=12){
+        alert(trainDate+'视觉大类已满12人！'); return;
+    }
+    if(majorType === "测试大类" && day["测试大类"] >=3){
+        alert(trainDate+'测试大类已满3人！'); return;
     }
 
-    // 4. 专业单日上限 15
-    if (target[major] >= 15) {
-        alert(`${date}号${major}专业已满15人，无法报名！`);
-        return;
-    }
+    day.total++;
+    day[majorType]++;
+    records.push({name,gender,phone,school,majorType,majorSub,trainDate,clothesSize,otherSize,shoeSize});
 
-    // 5. 报名成功
-    target.total++;
-    target[major]++;
-    records.push({ name, major, date });
-
-    // 保存到本地
-    localStorage.setItem('trainingSignData', JSON.stringify(data));
-    localStorage.setItem('trainingSignRecords', JSON.stringify(records));
+    localStorage.setItem('trainCount', JSON.stringify(countData));
+    localStorage.setItem('trainRecords', JSON.stringify(records));
 
     alert('报名成功！');
-    refreshUI();
+    
+    document.querySelectorAll('input,select,textarea').forEach(e=>e.value='');
+    document.getElementById('otherSizeBox').classList.add('hide');
+};
 
-    // 清空表单
-    document.getElementById('name').value = '';
-    document.getElementById('major').value = '';
-    document.getElementById('date').value = '';
+// 导出Excel
+document.getElementById('exportExcel').onclick = function() {
+    if (!isAdmin) { alert("仅管理员可导出"); return; }
+    if (records.length === 0) { alert("暂无数据"); return; }
+
+    let csv = "姓名,性别,手机号,毕业院校,专业大类,细分专业,培训日期,穿衣尺码,其他尺码,穿鞋码数\n";
+    records.forEach(item => {
+        csv += `${item.name},${item.gender},${item.phone},${item.school},${item.majorType},${item.majorSub},${item.trainDate},${item.clothesSize},${item.otherSize || ""},${item.shoeSize}\n`;
+    });
+
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "培训报名名单.csv";
+    a.click();
+    URL.revokeObjectURL(url);
 };
 </script>
 </body>
