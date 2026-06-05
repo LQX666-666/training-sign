@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!--页面HTML禁用缓存-->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>培训报名系统（根治CDN缓存·仅手动刷新）</title>
+    <title>培训报名系统（最终稳定版）</title>
     <style>
         * {
             margin: 0;
@@ -121,7 +120,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>培训报名系统（根治CDN缓存·仅手动刷新）</h1>
+    <h1>培训报名系统（最终稳定版）</h1>
 
     <div class="admin-login" id="adminLogin">
         <h3>管理员登录</h3>
@@ -253,116 +252,90 @@ dates.forEach(d => {
 let records = [];
 let isAdmin = false;
 
-// 改用POST请求拿数据，抛弃/latest强缓存接口
+// 【正确】GET + 随机数强防缓存
+function getUrl() {
+    return `https://api.jsonbin.io/v3/b/${BIN_ID}/latest?t=${Date.now()}`;
+}
+
 async function loadCloudData() {
     const btn = document.getElementById('refreshData');
     if(btn) btn.disabled = true;
-    try{
-        const abortCtrl = new AbortController();
-        const timeout = setTimeout(()=>abortCtrl.abort(),12000);
-        // POST方式读取bin，绕过CDN GET长效缓存 + X-Bin-Meta:false去掉外层包装
-        const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`,{
-            method:"POST",
-            headers:{
-                "X-Master-Key":API_KEY,
-                "X-Bin-Meta":"false",//直接返回原始json，无外层record包裹
-                "Cache-Control":"no-cache, no-store, must-revalidate, max-age=0",
-                "Pragma":"no-cache",
-                "Expires":"0"
+    try {
+        let res = await fetch(getUrl(), {
+            headers: {
+                "X-Master-Key": API_KEY,
+                "Cache-Control": "no-cache",
+                "Pragma": "no-cache"
             },
-            cache:"no-store",
-            signal:abortCtrl.signal
+            cache: "no-store"
         });
-        clearTimeout(timeout);
-        const rawData = await res.json();
-        // 直接读取原始数据
-        records = Array.isArray(rawData.records) ? [...rawData.records] : [];
-        countData = rawData.countData || countData;
+        let data = await res.json();
+        records = data.record?.records || [];
+        countData = data.record?.countData || countData;
         refresh();
-        alert("✅ 刷新成功，已同步云端最新报名");
-    }catch(e){
-        alert("❌ 刷新异常："+e.message);
+        alert("✅ 刷新成功！");
+    } catch (e) {
+        alert("❌ 刷新失败：网络或接口异常");
         console.error(e);
-    }finally{
+    } finally {
         if(btn) btn.disabled = false;
     }
 }
 
-// 提交前先拉全量最新数据再保存
-async function saveCloudData(newItem,dateKey,postKey){
-    await loadCloudData();
-    let dayItem = countData[dateKey];
-    dayItem.total += 1;
-    if(postKey !== "其他") dayItem[postKey] +=1;
-    records.push(newItem);
-    // PUT提交保存
-    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`,{
-        method:"PUT",
-        headers:{
-            "Content-Type":"application/json",
-            "X-Master-Key":API_KEY,
-            "Cache-Control":"no-cache"
+async function saveCloudData() {
+    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Master-Key": API_KEY
         },
-        body:JSON.stringify({records,countData})
-    })
+        body: JSON.stringify({ records, countData })
+    });
 }
 
-document.addEventListener('DOMContentLoaded',async ()=>{
-    const localLogin = localStorage.getItem("adminLoginStatus");
-    if(localLogin === "ok"){
+document.addEventListener('DOMContentLoaded', async () => {
+    if (localStorage.getItem('adminLoginStatus') === 'ok') {
         isAdmin = true;
         setAdminShow();
     }
-    //页面初始化加载1次，无任何自动定时刷新
     await loadCloudData();
     bindEvent();
-})
+});
 
-function setAdminShow(){
-    document.getElementById('adminLogin').classList.add("hide");
-    document.getElementById('adminOperBox').classList.remove("hide");
-    document.getElementById('countBox').classList.remove("hide");
-    document.getElementById('recordBox').classList.remove("hide");
+function setAdminShow() {
+    document.getElementById('adminLogin').classList.add('hide');
+    document.getElementById('adminOperBox').classList.remove('hide');
+    document.getElementById('countBox').classList.remove('hide');
+    document.getElementById('recordBox').classList.remove('hide');
 }
 
-function bindEvent(){
-    //登录
-    document.getElementById('loginBtn').addEventListener("click",async ()=>{
-        let u = document.getElementById('adminUser').value.trim();
-        let p = document.getElementById('adminPwd').value.trim();
-        if(u==="lqx666"&&p==="lqx888"){
+function bindEvent() {
+    document.getElementById('loginBtn').onclick = () => {
+        let u = document.getElementById('adminUser').value;
+        let p = document.getElementById('adminPwd').value;
+        if (u === 'lqx666' && p === 'lqx888') {
             isAdmin = true;
-            localStorage.setItem("adminLoginStatus","ok");
+            localStorage.setItem('adminLoginStatus', 'ok');
             setAdminShow();
-            await loadCloudData();
-            alert("管理员登录成功");
-        }else{
-            alert("账号密码错误");
-        }
-    })
-    //退出登录
-    document.getElementById('logoutBtn').addEventListener("click",()=>{
-        localStorage.removeItem("adminLoginStatus");
-        isAdmin = false;
-        document.getElementById('adminLogin').classList.remove("hide");
-        document.getElementById('adminOperBox').classList.add("hide");
-        document.getElementById('countBox').classList.add("hide");
-        document.getElementById('recordBox').classList.add("hide");
-        alert("已退出登录");
-    })
-    //手动刷新按钮
-    document.getElementById('refreshData').addEventListener("click",loadCloudData);
+            alert("登录成功");
+        } else alert("账号密码错误");
+    };
 
-    //岗位下拉
-    document.getElementById('postType').addEventListener('change',function(){
-        document.getElementById('otherRemarkBox').classList.toggle('hide',this.value!=='其他');
-    })
-    document.getElementById('clothesSize').addEventListener('change',function(){
-        document.getElementById('otherSizeBox').classList.toggle('hide',this.value!=='其他');
-    })
+    document.getElementById('logoutBtn').onclick = () => {
+        localStorage.clear();
+        location.reload();
+    };
 
-    //提交表单
-    document.getElementById('submit').addEventListener("click",async ()=>{
+    document.getElementById('refreshData').onclick = loadCloudData;
+
+    document.getElementById('postType').onchange = function () {
+        document.getElementById('otherRemarkBox').classList.toggle('hide', this.value !== '其他');
+    };
+    document.getElementById('clothesSize').onchange = function () {
+        document.getElementById('otherSizeBox').classList.toggle('hide', this.value !== '其他');
+    };
+
+    document.getElementById('submit').onclick = async () => {
         const name = document.getElementById('name').value.trim();
         const gender = document.getElementById('gender').value;
         const phone = document.getElementById('phone').value.trim();
@@ -375,66 +348,63 @@ function bindEvent(){
         const otherSize = document.getElementById('otherSize').value.trim();
         const shoeSize = document.getElementById('shoeSize').value.trim();
 
-        if(!name||!gender||!phone||!school||!education||!postType||!trainDate||!clothesSize||!shoeSize){
-            alert("请完善全部必填信息");return;
+        if (!name || !gender || !phone || !school || !education || !postType || !trainDate || !clothesSize || !shoeSize) {
+            alert("请填写完整信息"); return;
         }
-        if(postType==="其他"&&!postRemark){alert("其他岗位需填写备注");return;}
-        if(clothesSize==="其他"&&!otherSize){alert("填写自定义尺码");return;}
-        if(!/^\d{11}$/.test(phone)){alert("手机号必须11位数字");return;}
-        if(!/^[\u4e00-\u9fa5]+$/.test(school)){alert("院校只能填写中文");return;}
+        if (postType === "其他" && !postRemark) { alert("请填写岗位备注"); return; }
+        if (clothesSize === "其他" && !otherSize) { alert("请填写尺码"); return; }
 
         await loadCloudData();
-        if(records.find(x=>x.name===name&&x.phone===phone)){
-            alert("该人员已报名，禁止重复提交");return;
+        if (records.some(i => i.name === name && i.phone === phone)) {
+            alert("已报名，请勿重复提交");
+            return;
         }
 
-        let day = countData[trainDate];
-        if(day.total>=90){alert(trainDate+"总名额已满");return;}
-        if(postType!=='其他'&&day[postType]>=postLimit[postType]){
-            alert(`${trainDate}${postType}名额已满`);return;
+        const day = countData[trainDate];
+        if (day.total >= 90) { alert("当天人数已满"); return; }
+        if (postType !== "其他" && day[postType] >= postLimit[postType]) {
+            alert("该岗位已满"); return;
         }
 
-        const newData = {name,gender,phone,school,education,postType,postRemark,trainDate,clothesSize,otherSize,shoeSize};
-        await saveCloudData(newData,trainDate,postType);
-        alert("报名提交成功！");
-        document.querySelectorAll('input,select,textarea').forEach(item=>item.value='');
-        document.getElementById('otherRemarkBox').classList.add('hide');
-        document.getElementById('otherSizeBox').classList.add('hide');
-    })
+        records.push({
+            name, gender, phone, school, education, postType, postRemark,
+            trainDate, clothesSize, otherSize, shoeSize
+        });
+        day.total++;
+        if (postType !== "其他") day[postType]++;
 
-    //导出excel
-    document.getElementById('exportExcel').addEventListener('click',()=>{
-        if(!isAdmin){alert("仅管理员可导出");return;}
-        if(records.length===0){alert("暂无报名数据");return;}
-        let csv = "\uFEFF姓名,性别,手机号,毕业院校,学历,岗位大类,岗位备注,培训日期,穿衣尺码,其他尺码,穿鞋码数\n";
-        records.forEach(item=>{
-            csv += `${item.name},${item.gender},${item.phone},${item.school},${item.education},${item.postType},${item.postRemark||""},${item.trainDate},${item.clothesSize},${item.otherSize||""},${item.shoeSize}\n`;
-        })
-        const blob = new Blob([csv],{type:"text/csv;charset=utf-8"});
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "报名汇总.csv";
+        await saveCloudData();
+        alert("报名成功！");
+        document.querySelectorAll('input,textarea,select').forEach(i => i.value = '');
+    };
+
+    document.getElementById('exportExcel').onclick = () => {
+        if (!isAdmin) return;
+        let csv = "\uFEFF姓名,性别,手机号,毕业院校,学历,岗位大类,岗位备注,培训日期,穿衣尺码,其他尺码,鞋码\n";
+        records.forEach(i => {
+            csv += `${i.name},${i.gender},${i.phone},${i.school},${i.education},${i.postType},${i.postRemark || ""},${i.trainDate},${i.clothesSize},${i.otherSize || ""},${i.shoeSize}\n`;
+        });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        a.download = "报名名单.csv";
         a.click();
-        URL.revokeObjectURL(a.href);
-    })
+    };
 }
 
-//渲染页面数据
-function refresh(){
-    if(!isAdmin) return;
-    let countHtml = "";
-    dates.forEach(d=>{
-        let o = countData[d];
-        countHtml += `<p>${d}：总${o.total}/90 | 机械${o[Object.keys(postLimit)[0]]}/35 | 电气${o[Object.keys(postLimit)[1]]}/35 | 视觉${o[Object.keys(postLimit)[2]]}/10，其他不限名额</p>`
-    })
+function refresh() {
+    if (!isAdmin) return;
+    let countHtml = '';
+    dates.forEach(d => {
+        let item = countData[d];
+        countHtml += `<p>${d}：总${item.total}/90 | 机械${item[Object.keys(postLimit)[0]]}/35 | 电气${item[Object.keys(postLimit)[1]]}/35 | 视觉${item[Object.keys(postLimit)[2]]}/10</p>`;
+    });
     document.getElementById('countInfo').innerHTML = countHtml;
 
-    let listHtml = "";
-    records.forEach((item,idx)=>{
-        let bz = item.postRemark?"备注："+item.postRemark:"";
-        listHtml += `<div class="record-item">${idx+1}、${item.name} ${item.gender} ${item.phone} | 学历${item.education}<br>院校：${item.school} 岗位：${item.postType} ${bz}<br>培训：${item.trainDate} | 衣码${item.clothesSize}${item.otherSize||""} | 鞋码${item.shoeSize}</div>`
-    })
-    document.getElementById('recordList').innerHTML = listHtml||"<p>暂无报名记录</p>";
+    let listHtml = '';
+    records.forEach((i, idx) => {
+        listHtml += `<div class="record-item">${idx + 1}、${i.name} | ${i.gender} | ${i.phone}<br>院校：${i.school} | 岗位：${i.postType} | 培训：${i.trainDate}<br>衣码：${i.clothesSize} ${i.otherSize || ""} | 鞋码：${i.shoeSize}</div>`;
+    });
+    document.getElementById('recordList').innerHTML = listHtml || "<p>暂无报名</p>";
 }
 </script>
 </body>
