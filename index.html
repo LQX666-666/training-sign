@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>培训报名系统（按钮修复+全同步）</title>
+    <title>培训报名系统（云端统二版）</title>
     <style>
         * {
             margin: 0;
@@ -69,11 +69,7 @@
             cursor: pointer;
             margin-right: 10px;
         }
-        button:disabled{
-            background:#999;
-            cursor:not-allowed;
-        }
-        button:hover:not(:disabled) {
+        button:hover {
             background: #1b74d0;
         }
         .export-btn {
@@ -117,7 +113,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>培训报名系统（全同步修复版）</h1>
+    <h1>培训报名系统（云端统一版）</h1>
 
     <div class="admin-login" id="adminLogin">
         <h3>管理员登录</h3>
@@ -133,7 +129,7 @@
     </div>
 
     <div class="admin-operate hide" id="adminOperBox">
-        <button id="refreshData" class="refresh-data-btn">强制刷新最新数据</button>
+        <button id="refreshData" class="refresh-data-btn">刷新最新报名数据</button>
         <button id="exportExcel" class="export-btn">导出 Excel 报名表</button>
         <button id="logoutBtn" class="logout-btn">退出管理员登录</button>
     </div>
@@ -248,74 +244,48 @@ dates.forEach(d => {
 
 let records = [];
 let isAdmin = false;
-let refreshBtn = null;
 
-// 防缓存地址
+// 每次获取唯一时间戳，彻底杜绝缓存
 function getNoCacheUrl(){
-    let t = new Date().getTime() + Math.random();
-    return `https://api.jsonbin.io/v3/b/${BIN_ID}/latest?_=${t}`;
+    return `https://api.jsonbin.io/v3/b/${BIN_ID}/latest?t=${new Date().getTime()}`;
 }
 
-// 核心刷新函数：增加按钮禁用、超时、报错弹窗
-async function loadCloudData() {
-    refreshBtn = document.getElementById('refreshData');
-    if(refreshBtn) refreshBtn.disabled = true;
-    try {
-        // 10秒超时控制，防止请求卡死
-        const controller = new AbortController();
-        const timer = setTimeout(()=>controller.abort(),10000);
-        const res = await fetch(getNoCacheUrl(), {
-            headers: { "X-Master-Key": API_KEY },
-            cache: "no-cache",
-            credentials: "omit",
-            signal:controller.signal
-        });
-        clearTimeout(timer);
-        const json = await res.json();
-        if(json?.record){
-            records = Array.isArray(json.record.records) ? [...json.record.records] : [];
-            countData = json.record.countData || countData;
-        }
-        refresh();
-        alert("数据刷新成功！");
-    } catch (err) {
-        console.error(err);
-        alert("刷新失败："+err.message+"\n检查网络或稍后重试");
-    } finally {
-        if(refreshBtn) refreshBtn.disabled = false;
-    }
-}
-
-// 提交：先拉云端再新增，杜绝丢数据
-async function saveCloudData(newItem,dayKey,typeKey){
-    await loadCloudData();
-    let day = countData[dayKey];
-    day.total++;
-    if(typeKey !== "其他") day[typeKey]++;
-    records.push(newItem);
-    await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Master-Key": API_KEY,
-            "Cache-Control":"no-cache"
-        },
-        body: JSON.stringify({ records, countData })
-    });
-}
-
-// DOM加载完成再绑定事件（根治绑定失效）
-document.addEventListener('DOMContentLoaded',async ()=>{
+window.onload = async () => {
     const localLogin = localStorage.getItem('adminLoginStatus');
     if(localLogin === 'ok'){
         isAdmin = true;
         setAdminShow();
     }
     await loadCloudData();
-    // 7秒自动轮询
-    setInterval(loadCloudData,7000);
-    bindEvent();
-})
+    // 每10秒自动刷新一次（不用手动点）
+    setInterval(loadCloudData, 10000);
+};
+
+async function loadCloudData() {
+    try {
+        let res = await fetch(getNoCacheUrl(), {
+            headers: { "X-Master-Key": API_KEY },
+            cache: "no-store"
+        });
+        let data = await res.json();
+        records = data.record?.records || [];
+        countData = data.record?.countData || countData;
+        refresh();
+    } catch (e) {}
+}
+
+async function saveCloudData() {
+    try {
+        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Master-Key": API_KEY
+            },
+            body: JSON.stringify({ records, countData })
+        });
+    } catch (e) {}
+}
 
 function setAdminShow(){
     document.getElementById('adminLogin').classList.add('hide');
@@ -324,25 +294,22 @@ function setAdminShow(){
     document.getElementById('recordBox').classList.remove('hide');
 }
 
-// addEventListener稳定绑定，替换onclick
 function bindEvent(){
-    //登录按钮
-    document.getElementById('loginBtn').addEventListener('click',async ()=>{
+    document.getElementById('loginBtn').onclick = () => {
         const user = document.getElementById('adminUser').value.trim();
         const pwd = document.getElementById('adminPwd').value.trim();
         if(user === 'lqx666' && pwd === 'lqx888'){
             isAdmin = true;
             localStorage.setItem('adminLoginStatus','ok');
             setAdminShow();
-            await loadCloudData();
             alert('管理员登录成功！');
+            refresh();
         }else{
             alert('账号或密码错误！');
         }
-    })
+    }
 
-    //退出
-    document.getElementById('logoutBtn').addEventListener('click',()=>{
+    document.getElementById('logoutBtn').onclick = ()=>{
         localStorage.removeItem('adminLoginStatus');
         isAdmin = false;
         document.getElementById('adminLogin').classList.remove('hide');
@@ -350,21 +317,19 @@ function bindEvent(){
         document.getElementById('countBox').classList.add('hide');
         document.getElementById('recordBox').classList.add('hide');
         alert('已退出登录');
-    })
+    }
 
-    //刷新按钮【修复重点】
-    document.getElementById('refreshData').addEventListener('click',loadCloudData);
+    document.getElementById('refreshData').onclick = loadCloudData;
 
-    //岗位切换
-    document.getElementById('postType').addEventListener('change',function(){
+    document.getElementById('postType').onchange = function() {
         document.getElementById('otherRemarkBox').classList.toggle('hide', this.value !== "其他");
-    });
-    document.getElementById('clothesSize').addEventListener('change',function(){
-        document.getElementById('otherSizeBox').classList.toggle('hide', this.value !== '其他');
-    });
+    };
 
-    //提交报名
-    document.getElementById('submit').addEventListener('click',async ()=>{
+    document.getElementById('clothesSize').onchange = function() {
+        document.getElementById('otherSizeBox').classList.toggle('hide', this.value !== '其他');
+    };
+
+    document.getElementById('submit').onclick = async () => {
         const name = document.getElementById('name').value.trim();
         const gender = document.getElementById('gender').value;
         const phone = document.getElementById('phone').value.trim();
@@ -387,8 +352,6 @@ function bindEvent(){
         if(!regPhone.test(phone)){ alert('手机号必须11位纯数字！'); return; }
         const regChinese = /^[\u4e00-\u9fa5]+$/;
         if(!regChinese.test(school)){ alert('毕业院校只能填中文！'); return; }
-
-        await loadCloudData();
         if(records.some(i => i.name === name && i.phone === phone)){ alert('已报名，禁止重复提交！'); return; }
 
         const day = countData[trainDate];
@@ -398,16 +361,17 @@ function bindEvent(){
             return;
         }
 
-        const newInfo = {name,gender,phone,school,education,postType,postRemark,trainDate,clothesSize,otherSize,shoeSize};
-        await saveCloudData(newInfo,trainDate,postType);
+        if(postType !== "其他") day[postType]++;
+        day.total++;
+        records.push({name,gender,phone,school,education,postType,postRemark,trainDate,clothesSize,otherSize,shoeSize});
+        await saveCloudData();
         alert('报名成功！');
         document.querySelectorAll('input,select,textarea').forEach(e=>e.value='');
         document.getElementById('otherSizeBox').classList.add('hide');
         document.getElementById('otherRemarkBox').classList.add('hide');
-    });
+    };
 
-    //导出
-    document.getElementById('exportExcel').addEventListener('click',()=>{
+    document.getElementById('exportExcel').onclick = function() {
         if (!isAdmin) { alert("仅管理员可导出"); return; }
         if (records.length === 0) { alert("暂无数据"); return; }
         let csv = "姓名,性别,手机号,毕业院校,学历,岗位大类,岗位备注,培训日期,穿衣尺码,其他尺码,穿鞋码数\n";
@@ -420,10 +384,9 @@ function bindEvent(){
         a.download = "培训报名名单.csv";
         a.click();
         URL.revokeObjectURL(a.href);
-    });
+    };
 }
 
-//渲染列表
 function refresh() {
     if(!isAdmin) return;
     let html = '';
@@ -445,6 +408,8 @@ function refresh() {
     });
     document.getElementById('recordList').innerHTML = rhtml || '<p>暂无报名</p>';
 }
+
+bindEvent();
 </script>
 </body>
 </html>
