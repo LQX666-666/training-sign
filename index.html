@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生培训日期报名系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+        }
+        .container {
+            max-width: 700px;
+            margin: 30px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+        }
+        h1 {
+            text-align: center;
+            color: #2d3748;
+            margin-bottom: 25px;
+            font-size: 24px;
+        }
+        h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .form-box {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .form-item {
+            margin-bottom: 18px;
+        }
+        label {
+            display: inline-block;
+            width: 80px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select {
+            width: 280px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 15px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 11px 25px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.2s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .info-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .info-box p {
+            line-height: 1.6;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .record-list {
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #fafbfc;
+            border-radius: 8px;
+        }
+        .record-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .warn {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>机械/电气专业培训报名系统</h1>
+
+        <div class="form-box">
+            <h3>报名信息填写</h3>
+            <div class="form-item">
+                <label>姓名：</label>
+                <input type="text" id="name" placeholder="请输入真实姓名" required>
+            </div>
+            <div class="form-item">
+                <label>专业：</label>
+                <select id="major" required>
+                    <option value="">请选择专业</option>
+                    <option value="机械">机械专业</option>
+                    <option value="电气">电气专业</option>
+                </select>
+            </div>
+            <div class="form-item">
+                <label>培训日期：</label>
+                <select id="date" required>
+                    <option value="">请选择日期</option>
+                    <option value="25">25号</option>
+                    <option value="26">26号</option>
+                    <option value="27">27号</option>
+                    <option value="28">28号</option>
+                </select>
+            </div>
+            <button id="submitBtn">提交报名</button>
+        </div>
+
+        <div class="info-box">
+            <h3>实时报名人数统计</h3>
+            <div id="countInfo"></div>
+        </div>
+
+        <div class="info-box">
+            <h3>已报名学生列表</h3>
+            <div class="record-list" id="recordList"></div>
+        </div>
+    </div>
+
+<script>
+// 报名数据规则
+let data = {
+    25: { total: 0, 机械: 0, 电气: 0 },
+    26: { total: 0, 机械: 0, 电气: 0 },
+    27: { total: 0, 机械: 0, 电气: 0 },
+    28: { total: 0, 机械: 0, 电气: 0 }
+};
+
+// 报名记录（用于查重）
+let records = [];
+
+// 页面加载时读取本地数据
+window.onload = function() {
+    const savedData = localStorage.getItem('trainingSignData');
+    const savedRecords = localStorage.getItem('trainingSignRecords');
+    
+    if (savedData) data = JSON.parse(savedData);
+    if (savedRecords) records = JSON.parse(savedRecords);
+    
+    refreshUI();
+};
+
+// 刷新页面显示
+function refreshUI() {
+    // 更新人数统计
+    let countHtml = '';
+    for (let day in data) {
+        const d = data[day];
+        countHtml += `<p>${day}号：总人数 ${d.total}/25　｜　机械 ${d.机械}/15　｜　电气 ${d.电气}/15</p>`;
+    }
+    document.getElementById('countInfo').innerHTML = countHtml;
+
+    // 更新报名记录
+    let recordHtml = '';
+    if (records.length === 0) {
+        recordHtml = '<p>暂无学生报名</p>';
+    } else {
+        records.forEach((item, i) => {
+            recordHtml += `<div class="record-item">${i+1}、${item.name}（${item.major}）- ${item.date}号</div>`;
+        });
+    }
+    document.getElementById('recordList').innerHTML = recordHtml;
+}
+
+// 提交报名
+document.getElementById('submitBtn').onclick = function() {
+    const name = document.getElementById('name').value.trim();
+    const major = document.getElementById('major').value;
+    const date = document.getElementById('date').value;
+
+    // 1. 校验空项
+    if (!name || !major || !date) {
+        alert('请填写完整信息！');
+        return;
+    }
+
+    // 2. 【禁止重复报名】核心判断：姓名+专业 唯一
+    const isRepeat = records.some(item => item.name === name && item.major === major);
+    if (isRepeat) {
+        alert('该学生已报名，禁止重复提交！');
+        return;
+    }
+
+    const target = data[date];
+
+    // 3. 每日总人数上限 25
+    if (target.total >= 25) {
+        alert(`${date}号总人数已满25人，无法报名！`);
+        return;
+    }
+
+    // 4. 专业单日上限 15
+    if (target[major] >= 15) {
+        alert(`${date}号${major}专业已满15人，无法报名！`);
+        return;
+    }
+
+    // 5. 报名成功
+    target.total++;
+    target[major]++;
+    records.push({ name, major, date });
+
+    // 保存到本地
+    localStorage.setItem('trainingSignData', JSON.stringify(data));
+    localStorage.setItem('trainingSignRecords', JSON.stringify(records));
+
+    alert('报名成功！');
+    refreshUI();
+
+    // 清空表单
+    document.getElementById('name').value = '';
+    document.getElementById('major').value = '';
+    document.getElementById('date').value = '';
+};
+</script>
+</body>
+</html>
